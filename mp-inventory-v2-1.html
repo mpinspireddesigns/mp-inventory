@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>MP Inspired Designs — Inventory</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getDatabase, ref, set, get, remove, onValue } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+  // ── FIREBASE CONFIG (to be filled in after setup) ──
+  const firebaseConfig = {
+    apiKey: "AIzaSyCGAvzYgOFQHyaJidpUOJE2TjgPkIe-PVc",
+    authDomain: "mp-inventory-e3558.firebaseapp.com",
+    databaseURL: "https://mp-inventory-e3558-default-rtdb.firebaseio.com",
+    projectId: "mp-inventory-e3558",
+    storageBucket: "mp-inventory-e3558.firebasestorage.app",
+    messagingSenderId: "754790447129",
+    appId: "1:754790447129:web:2d2c6fdab62d3cc3a99288"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // Expose DB functions globally
+  window.fbDb = db;
+  window.fbRef = ref;
+  window.fbSet = set;
+  window.fbGet = get;
+  window.fbRemove = remove;
+  window.fbOnValue = onValue;
+  window.firebaseReady = true;
+  window.dispatchEvent(new Event('firebaseReady'));
+</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --cream: #F7F3EE;
+  --warm-white: #FDFAF7;
+  --sage: #7A8C72;
+  --sage-light: #E8EDE6;
+  --terracotta: #B85C38;
+  --terracotta-light: #F5E8E3;
+  --ink: #2C2C2C;
+  --ink-mid: #5C5C5C;
+  --ink-light: #9C9C9C;
+  --border: #DDD8D0;
+  --unlisted-bg: #EDE7F6;
+  --unlisted-border: #9575CD;
+  --listed-bg: #E8F5E9;
+  --listed-border: #66BB6A;
+  --inactive-bg: #E8EDE6;
+  --inactive-border: #7A8C72;
+  --sold-bg: #FFFDE7;
+  --sold-border: #F9A825;
+  --damaged-bg: #FFEBEE;
+  --damaged-border: #EF5350;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--cream); font-family: 'Inter', sans-serif; color: var(--ink); min-height: 100vh; overflow-x: hidden; }
+
+header { background: var(--ink); color: var(--cream); padding: 16px 20px 12px; text-align: center; }
+header h1 { font-family: 'Playfair Display', serif; font-size: 1.3rem; color: var(--cream); }
+header p { font-size: 0.68rem; color: var(--ink-light); margin-top: 2px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+.sync-bar { background: #1a1a1a; padding: 4px 12px; text-align: center; font-size: 0.65rem; color: var(--ink-light); }
+.sync-bar.synced { color: #9ABA90; }
+.sync-bar.syncing { color: #F9C74F; }
+.sync-bar.error { color: #EF5350; }
+
+.stats-bar { display: flex; background: #1a1a1a; padding: 8px 12px; }
+.stat { flex: 1; text-align: center; padding: 4px 8px; border-right: 1px solid #333; min-width: 60px; }
+.stat:last-child { border-right: none; }
+.stat-num { font-size: 1.1rem; font-weight: 700; color: var(--cream); }
+.stat-label { font-size: 0.6rem; color: var(--ink-light); text-transform: uppercase; letter-spacing: 0.07em; margin-top: 1px; }
+.stat-num.terracotta { color: var(--terracotta); }
+.stat-num.sage { color: #9ABA90; }
+.stat-num.gold { color: #F9C74F; }
+
+.tabs { display: flex; background: #222; border-bottom: 2px solid var(--terracotta); overflow-x: auto; }
+.tab { flex: 1; padding: 10px 4px; text-align: center; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-light); cursor: pointer; border: none; background: none; white-space: nowrap; min-width: 70px; }
+.tab.active { color: var(--cream); background: var(--terracotta); }
+
+.screen { display: none; padding: 14px; }
+.screen.active { display: block; }
+
+.section-label { font-size: 0.63rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sage); margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--sage-light); }
+.section-label:first-child { margin-top: 0; }
+
+.field { margin-bottom: 11px; }
+.field label { display: block; font-size: 0.71rem; font-weight: 600; color: var(--ink-mid); margin-bottom: 4px; }
+.field-row { display: flex; gap: 8px; align-items: flex-start; }
+.field-row input, .field-row select, .field-row textarea { flex: 1; }
+
+/* Price input wrapper */
+.price-wrap { position: relative; flex: 1; }
+.price-wrap .dollar { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-mid); font-size: 0.88rem; font-weight: 600; pointer-events: none; }
+.price-wrap input { padding-left: 22px !important; }
+
+input[type="text"], input[type="number"], input[type="date"], select, textarea {
+  width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+  font-family: 'Inter', sans-serif; font-size: 0.88rem; color: var(--ink);
+  background: var(--warm-white); -webkit-appearance: none; transition: border-color 0.15s;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--sage); }
+textarea { resize: vertical; min-height: 55px; }
+
+.mic-btn { padding: 10px 11px; background: var(--sage-light); border: 1.5px solid var(--sage); border-radius: 8px; cursor: pointer; font-size: 1rem; color: var(--sage); flex-shrink: 0; transition: all 0.15s; }
+.mic-btn.recording { background: var(--terracotta); border-color: var(--terracotta); color: white; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.65} }
+
+.material-row { display: grid; grid-template-columns: 1fr 64px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.material-row span { font-size: 0.8rem; color: var(--ink-mid); font-weight: 500; }
+.qty-input { width: 64px !important; text-align: center; }
+
+.toggle-group { display: flex; border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden; }
+.toggle-group button { flex: 1; padding: 10px; border: none; background: var(--warm-white); font-family: 'Inter', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--ink-mid); cursor: pointer; transition: all 0.15s; }
+.toggle-group button.selected { background: var(--sage); color: white; }
+.toggle-group button:first-child { border-right: 1px solid var(--border); }
+
+.save-btn { width: 100%; padding: 14px; background: var(--terracotta); color: white; border: none; border-radius: 10px; font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 18px; transition: background 0.15s; }
+.save-btn:active { background: #9A4A2A; }
+.secondary-btn { width: 100%; padding: 12px; background: var(--sage-light); color: var(--sage); border: 1.5px solid var(--sage); border-radius: 10px; font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 600; cursor: pointer; margin-top: 10px; }
+
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: #2C2C2C; color: white; padding: 11px 22px; border-radius: 24px; font-size: 0.82rem; font-weight: 600; transition: transform 0.3s ease; z-index: 1000; white-space: nowrap; }
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+.status-badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; border: 1.5px solid; }
+.status-Unlisted { background: var(--unlisted-bg); border-color: var(--unlisted-border); color: #5E35B1; }
+.status-Listed { background: var(--listed-bg); border-color: var(--listed-border); color: #388E3C; }
+.status-Inactive { background: var(--inactive-bg); border-color: var(--inactive-border); color: #4A5E44; }
+.status-Sold { background: var(--sold-bg); border-color: var(--sold-border); color: #8a6800; }
+.status-Damaged { background: var(--damaged-bg); border-color: var(--damaged-border); color: #C62828; }
+
+.inv-filters { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.filter-btn { padding: 5px 12px; border-radius: 20px; border: 1.5px solid var(--border); background: var(--warm-white); font-size: 0.7rem; font-weight: 600; cursor: pointer; color: var(--ink-mid); }
+.filter-btn.active { background: var(--terracotta); border-color: var(--terracotta); color: white; }
+
+.search-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+.search-bar input { flex: 1; }
+
+.inv-card { background: var(--warm-white); border: 1.5px solid var(--border); border-radius: 10px; padding: 13px; margin-bottom: 10px; }
+.inv-card.sold { background: var(--sold-bg); border-color: var(--sold-border); }
+.inv-card.inactive { background: var(--inactive-bg); border-color: var(--inactive-border); }
+.inv-card.unlisted { background: var(--unlisted-bg); border-color: var(--unlisted-border); }
+.inv-card.damaged { background: var(--damaged-bg); border-color: var(--damaged-border); }
+
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+.card-sku { font-family: 'Playfair Display', serif; font-size: 1rem; color: var(--terracotta); font-weight: 700; }
+.card-item { font-size: 0.88rem; font-weight: 600; margin-bottom: 8px; }
+.card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 8px; }
+.card-field { font-size: 0.73rem; color: var(--ink-mid); }
+.card-field span { display: block; font-size: 0.62rem; color: var(--ink-light); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 1px; }
+.card-notes { font-size: 0.73rem; color: var(--ink-mid); background: rgba(0,0,0,0.04); border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; font-style: italic; }
+.card-mats { font-size: 0.72rem; color: var(--sage); background: var(--sage-light); border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; }
+
+.card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.card-btn { flex: 1; padding: 7px 6px; border-radius: 7px; font-size: 0.7rem; font-weight: 600; cursor: pointer; border: 1px solid; text-align: center; min-width: 60px; }
+.btn-edit { background: var(--terracotta-light); color: var(--terracotta); border-color: var(--terracotta); }
+.btn-qr { background: var(--sage-light); color: var(--sage); border-color: var(--sage); }
+.btn-sell { background: var(--sold-bg); color: #8a6800; border-color: var(--sold-border); }
+.btn-delete { background: #f5f5f5; color: var(--ink-light); border-color: var(--border); }
+
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 500; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--warm-white); border-radius: 14px; padding: 20px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; }
+.modal h2 { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--terracotta); margin-bottom: 14px; }
+.modal-close { float: right; background: none; border: none; font-size: 1.3rem; cursor: pointer; color: var(--ink-light); margin-top: -4px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+.modal-actions button { flex: 1; }
+
+.qr-display { text-align: center; padding: 16px 0; }
+.qr-display .qr-sku { font-family: 'Playfair Display', serif; font-size: 1.4rem; color: var(--terracotta); font-weight: 700; margin-bottom: 12px; }
+#qr-canvas { margin: 0 auto; }
+.qr-shop { font-size: 0.7rem; color: var(--ink-light); margin-top: 8px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+.sell-modal-sku { font-family: 'Playfair Display', serif; font-size: 1rem; color: var(--terracotta); margin-bottom: 4px; }
+.sell-modal-item { font-size: 0.85rem; font-weight: 600; margin-bottom: 14px; color: var(--ink-mid); }
+
+.scan-area { text-align: center; padding: 24px 16px; }
+.scan-icon { font-size: 3.5rem; margin-bottom: 12px; }
+.scan-area h2 { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--ink); margin-bottom: 8px; }
+.scan-area p { font-size: 0.82rem; color: var(--ink-mid); margin-bottom: 20px; line-height: 1.5; }
+
+.export-btn { width: 100%; padding: 13px; background: var(--sage); color: white; border: none; border-radius: 10px; font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 600; cursor: pointer; margin-bottom: 10px; }
+.export-btn.dark { background: var(--ink); }
+.export-btn.danger { background: #EF5350; }
+
+.speech-note { font-size: 0.68rem; color: var(--ink-light); margin-top: 3px; font-style: italic; }
+.sku-input-display { background: var(--terracotta-light); border: 1.5px solid var(--terracotta) !important; }
+.empty-state { text-align: center; padding: 40px 16px; color: var(--ink-light); }
+.empty-state .icon { font-size: 2.5rem; margin-bottom: 10px; }
+.empty-state p { font-size: 0.82rem; line-height: 1.5; }
+.profit-positive { color: #388E3C; font-weight: 700; }
+.profit-negative { color: #C62828; font-weight: 700; }
+
+.loading-overlay { position: fixed; inset: 0; background: rgba(247,243,238,0.95); z-index: 900; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.loading-overlay h2 { font-family: 'Playfair Display', serif; color: var(--terracotta); margin-bottom: 8px; }
+.loading-overlay p { font-size: 0.82rem; color: var(--ink-light); }
+.spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--terracotta); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media print {
+  body > *:not(#print-area) { display: none !important; }
+  #print-area { display: block !important; }
+  .print-label { border: 2px solid #000; padding: 12px 18px; text-align: center; display: inline-block; font-family: 'Inter', sans-serif; margin: 20px auto; }
+  .print-label .pl-shop { font-size: 9pt; letter-spacing: 2px; text-transform: uppercase; color: #666; }
+  .print-label .pl-sku { font-size: 22pt; font-weight: 700; margin: 4px 0; }
+}
+#print-area { display: none; }
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="spinner"></div>
+  <h2>MP Inventory</h2>
+  <p>Connecting to your inventory...</p>
+</div>
+
+<header>
+  <h1>MP Inspired Designs</h1>
+  <p>Inventory Management</p>
+</header>
+
+<div class="sync-bar synced" id="sync-bar">✓ Connected — data saved to cloud</div>
+
+<div class="stats-bar">
+  <div class="stat"><div class="stat-num" id="stat-total">0</div><div class="stat-label">Total</div></div>
+  <div class="stat"><div class="stat-num terracotta" id="stat-unlisted">0</div><div class="stat-label">Unlisted</div></div>
+  <div class="stat"><div class="stat-num sage" id="stat-listed">0</div><div class="stat-label">Listed</div></div>
+  <div class="stat"><div class="stat-num gold" id="stat-sold">0</div><div class="stat-label">Sold</div></div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('new', this)">+ New</button>
+  <button class="tab" onclick="switchTab('inventory', this)">Inventory</button>
+  <button class="tab" onclick="switchTab('scan', this)">📷 Scan</button>
+  <button class="tab" onclick="switchTab('export', this)">Export</button>
+</div>
+
+<!-- NEW ENTRY -->
+<div id="screen-new" class="screen active">
+  <div class="section-label">Item Info</div>
+  <div class="field">
+    <label>SKU Number</label>
+    <div class="field-row">
+      <input type="text" id="n-sku" class="sku-input-display" placeholder="e.g. 2026-27">
+      <button class="mic-btn" onclick="startVoice('n-sku', this)">🎤</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Item Type</label>
+    <div class="field-row">
+      <input type="text" id="n-type" placeholder="e.g. Vintage Glassware">
+      <button class="mic-btn" onclick="startVoice('n-type', this)">🎤</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Description</label>
+    <div class="field-row">
+      <textarea id="n-desc" placeholder="e.g. Set of 4 silver teacups, Victorian style"></textarea>
+      <button class="mic-btn" onclick="startVoice('n-desc', this)" style="align-self:flex-start">🎤</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Bin Location</label>
+    <div class="field-row">
+      <input type="text" id="n-bin" placeholder="e.g. A, B, C">
+      <button class="mic-btn" onclick="startVoice('n-bin', this)">🎤</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Status</label>
+    <select id="n-status">
+      <option value="Unlisted">Unlisted — in inventory, not yet on Etsy</option>
+      <option value="Listed">Listed — live on Etsy</option>
+      <option value="Inactive">Inactive — temporarily pulled</option>
+      <option value="Sold">Sold</option>
+      <option value="Damaged">Damaged / Lost</option>
+    </select>
+  </div>
+
+  <div class="section-label">Pricing</div>
+  <div class="field">
+    <label>Unit Price Paid (your cost)</label>
+    <div class="field-row">
+      <div class="price-wrap"><span class="dollar">$</span><input type="text" id="n-cost" placeholder="0.00"></div>
+      <button class="mic-btn" onclick="startVoice('n-cost', this)">🎤</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Material Costs</label>
+    <div class="field-row">
+      <div class="price-wrap"><span class="dollar">$</span><input type="text" id="n-matcost" placeholder="0.00"></div>
+      <button class="mic-btn" onclick="startVoice('n-matcost', this)">🎤</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Listed Price on Etsy</label>
+    <div class="field-row">
+      <div class="price-wrap"><span class="dollar">$</span><input type="text" id="n-price" placeholder="0.00"></div>
+      <button class="mic-btn" onclick="startVoice('n-price', this)">🎤</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Date Listed on Etsy</label>
+    <input type="date" id="n-datelisted">
+    <p class="speech-note">Leave blank until you list it</p>
+  </div>
+  <div class="field">
+    <label>Shipping Method</label>
+    <div class="toggle-group">
+      <button id="tog-c" class="selected" onclick="setShipping('C')">C — Calculated</button>
+      <button id="tog-f" onclick="setShipping('F')">F — Free Shipping</button>
+    </div>
+  </div>
+
+  <div class="section-label">Shipping Details</div>
+  <div class="field">
+    <label>Box Size / Type</label>
+    <div class="field-row">
+      <input type="text" id="n-box" placeholder="e.g. Small flat rate, 6x6x6">
+      <button class="mic-btn" onclick="startVoice('n-box', this)">🎤</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Actual Weight</label>
+    <div class="field-row">
+      <input type="text" id="n-wactual" placeholder="e.g. 1 lb 4 oz">
+      <button class="mic-btn" onclick="startVoice('n-wactual', this)">🎤</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>List Weight (padded for Etsy)</label>
+    <div class="field-row">
+      <input type="text" id="n-wlist" placeholder="e.g. 1 lb 8 oz">
+      <button class="mic-btn" onclick="startVoice('n-wlist', this)">🎤</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Etsy Fees</label>
+    <div class="field-row">
+      <div class="price-wrap"><span class="dollar">$</span><input type="text" id="n-etsyfees" placeholder="0.00"></div>
+      <button class="mic-btn" onclick="startVoice('n-etsyfees', this)">🎤</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Marketing Costs</label>
+    <div class="field-row">
+      <div class="price-wrap"><span class="dollar">$</span><input type="text" id="n-mktcost" placeholder="0.00"></div>
+      <button class="mic-btn" onclick="startVoice('n-mktcost', this)">🎤</button>
+    </div>
+  </div>
+
+  <div class="section-label">Packing Materials Used</div>
+  <div class="material-row"><span>Foam Sheets</span><input type="number" class="qty-input" id="m-foam" value="0" min="0"></div>
+  <div class="material-row"><span>Bubble Wrap</span><input type="number" class="qty-input" id="m-bubble" value="0" min="0"></div>
+  <div class="material-row"><span>Saran Wrap (wraps)</span><input type="number" class="qty-input" id="m-saran" value="0" min="0"></div>
+  <div class="material-row"><span>Tissue Paper</span><input type="number" class="qty-input" id="m-tissue" value="0" min="0"></div>
+  <div class="material-row"><span>Packing Peanuts</span><input type="number" class="qty-input" id="m-peanuts" value="0" min="0"></div>
+
+  <div class="field" style="margin-top:14px;">
+    <label>Notes</label>
+    <div class="field-row">
+      <textarea id="n-notes" placeholder="e.g. marked down 12/18, damaged corner..."></textarea>
+      <button class="mic-btn" onclick="startVoice('n-notes', this)" style="align-self:flex-start">🎤</button>
+    </div>
+  </div>
+  <button class="save-btn" onclick="saveEntry()">💾 Save & Generate QR Label</button>
+</div>
+
+<!-- INVENTORY -->
+<div id="screen-inventory" class="screen">
+  <div class="search-bar">
+    <input type="text" id="inv-search" placeholder="Search SKU, item, description..." oninput="renderInventory()">
+    <button class="mic-btn" onclick="startVoice('inv-search', this); setTimeout(renderInventory, 2000)">🎤</button>
+  </div>
+  <div class="inv-filters">
+    <button class="filter-btn active" onclick="setFilter('All', this)">All</button>
+    <button class="filter-btn" onclick="setFilter('Unlisted', this)">Unlisted</button>
+    <button class="filter-btn" onclick="setFilter('Listed', this)">Listed</button>
+    <button class="filter-btn" onclick="setFilter('Inactive', this)">Inactive</button>
+    <button class="filter-btn" onclick="setFilter('Sold', this)">Sold</button>
+    <button class="filter-btn" onclick="setFilter('Damaged', this)">Damaged</button>
+  </div>
+  <div id="inv-container"></div>
+</div>
+
+<!-- SCAN -->
+<div id="screen-scan" class="screen">
+  <div class="scan-area">
+    <div class="scan-icon">📷</div>
+    <h2>Scan a QR Label</h2>
+    <p>Point your camera at the QR code on a wrapped item to pull it up instantly.</p>
+  </div>
+  <div class="field">
+    <label>Or type/speak a SKU manually:</label>
+    <div class="field-row">
+      <input type="text" id="manual-sku" placeholder="e.g. 2026-27">
+      <button class="mic-btn" onclick="startVoice('manual-sku', this)">🎤</button>
+    </div>
+  </div>
+  <button class="save-btn" onclick="lookupSKU()">Look Up SKU</button>
+</div>
+
+<!-- EXPORT -->
+<div id="screen-export" class="screen">
+  <div class="section-label">Export & Backup</div>
+  <p style="font-size:0.8rem;color:var(--ink-mid);margin-bottom:14px;line-height:1.5;">Download your inventory as a CSV for Excel or your CPA.</p>
+  <button class="export-btn" onclick="exportCSV('all')">⬇️ Export All Inventory</button>
+  <button class="export-btn" onclick="exportCSV('sold')">⬇️ Export Sold Items Only</button>
+  <button class="export-btn" onclick="exportCSV('active')">⬇️ Export Active Listings</button>
+
+  <div class="section-label">Import Data</div>
+  <p style="font-size:0.8rem;color:var(--ink-mid);margin-bottom:10px;line-height:1.5;">Import a previously exported CSV to restore your inventory.</p>
+  <input type="file" id="import-file" accept=".csv" style="display:none" onchange="importCSV(this)">
+  <button class="export-btn dark" onclick="document.getElementById('import-file').click()">⬆️ Import CSV Backup</button>
+
+  <div class="section-label">Danger Zone</div>
+  <button class="export-btn danger" onclick="clearAll()">🗑 Clear All Data</button>
+</div>
+
+<!-- MODALS -->
+<!-- QR Modal -->
+<div class="modal-overlay" id="qr-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('qr-modal')">✕</button>
+    <h2>QR Label</h2>
+    <div class="qr-display">
+      <div class="qr-sku" id="qr-sku-text"></div>
+      <div id="qr-canvas"></div>
+      <div class="qr-shop">MPInspiredDesignsCo</div>
+    </div>
+    <div class="modal-actions">
+      <button class="save-btn" onclick="printQR()" style="margin-top:0;">🖨 Print Label</button>
+      <button class="secondary-btn" onclick="closeModal('qr-modal')" style="margin-top:0;">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('edit-modal')">✕</button>
+    <h2>Edit Item</h2>
+    <div class="field"><label>Status</label>
+      <select id="e-status">
+        <option value="Unlisted">Unlisted</option>
+        <option value="Listed">Listed</option>
+        <option value="Inactive">Inactive</option>
+        <option value="Sold">Sold</option>
+        <option value="Damaged">Damaged / Lost</option>
+      </select>
+    </div>
+    <div class="field"><label>Item Type</label><div class="field-row"><input type="text" id="e-type"><button class="mic-btn" onclick="startVoice('e-type',this)">🎤</button></div></div>
+    <div class="field"><label>Description</label><div class="field-row"><textarea id="e-desc"></textarea><button class="mic-btn" onclick="startVoice('e-desc',this)" style="align-self:flex-start">🎤</button></div></div>
+    <div class="field"><label>Bin Location</label><div class="field-row"><input type="text" id="e-bin"><button class="mic-btn" onclick="startVoice('e-bin',this)">🎤</button></div></div>
+    <div class="field"><label>Unit Price Paid</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="e-cost"></div><button class="mic-btn" onclick="startVoice('e-cost',this)">🎤</button></div></div>
+    <div class="field"><label>Material Costs</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="e-matcost"></div><button class="mic-btn" onclick="startVoice('e-matcost',this)">🎤</button></div></div>
+    <div class="field"><label>Listed Price</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="e-price"></div><button class="mic-btn" onclick="startVoice('e-price',this)">🎤</button></div></div>
+    <div class="field"><label>Shipping Method</label>
+      <div class="toggle-group">
+        <button id="e-tog-c" class="selected" onclick="setEditShipping('C')">C — Calculated</button>
+        <button id="e-tog-f" onclick="setEditShipping('F')">F — Free Shipping</button>
+      </div>
+    </div>
+    <div class="field"><label>Box Size / Type</label><div class="field-row"><input type="text" id="e-box" placeholder="e.g. Small flat rate, 6x6x6"><button class="mic-btn" onclick="startVoice('e-box',this)">🎤</button></div></div>
+    <div class="field"><label>Actual Weight</label><div class="field-row"><input type="text" id="e-wactual"><button class="mic-btn" onclick="startVoice('e-wactual',this)">🎤</button></div></div>
+    <div class="field"><label>List Weight (padded)</label><div class="field-row"><input type="text" id="e-wlist"><button class="mic-btn" onclick="startVoice('e-wlist',this)">🎤</button></div></div>
+    <div class="field"><label>Date Listed</label><input type="date" id="e-datelisted"></div>
+    <div class="field"><label>Buyer Paid</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="e-buyerpaid"></div><button class="mic-btn" onclick="startVoice('e-buyerpaid',this)">🎤</button></div></div>
+    <div class="field"><label>Etsy Fees</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="e-etsyfees"></div><button class="mic-btn" onclick="startVoice('e-etsyfees',this)">🎤</button></div></div>
+    <div class="field"><label>Marketing Costs</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="e-mktcost"></div><button class="mic-btn" onclick="startVoice('e-mktcost',this)">🎤</button></div></div>
+    <div class="field"><label>Shipping Cost (actual)</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="e-shipcost"></div><button class="mic-btn" onclick="startVoice('e-shipcost',this)">🎤</button></div></div>
+    <div class="field"><label>Notes</label><div class="field-row"><textarea id="e-notes"></textarea><button class="mic-btn" onclick="startVoice('e-notes',this)" style="align-self:flex-start">🎤</button></div></div>
+    <input type="hidden" id="e-id">
+    <div class="modal-actions">
+      <button class="save-btn" onclick="saveEdit()" style="margin-top:0;">💾 Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sell Modal -->
+<div class="modal-overlay" id="sell-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('sell-modal')">✕</button>
+    <h2>Mark as Sold 🎉</h2>
+    <div class="sell-modal-sku" id="sell-sku"></div>
+    <div class="sell-modal-item" id="sell-item"></div>
+    <div class="field"><label>Buyer Paid</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="s-buyerpaid" placeholder="0.00"></div><button class="mic-btn" onclick="startVoice('s-buyerpaid',this)">🎤</button></div></div>
+    <div class="field"><label>Etsy Fees</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="s-etsyfees" placeholder="0.00"></div><button class="mic-btn" onclick="startVoice('s-etsyfees',this)">🎤</button></div></div>
+    <div class="field"><label>Shipping Cost (actual)</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="s-shipcost" placeholder="0.00"></div><button class="mic-btn" onclick="startVoice('s-shipcost',this)">🎤</button></div></div>
+    <div class="field"><label>Marketing Costs</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="s-mktcost" placeholder="0.00"></div><button class="mic-btn" onclick="startVoice('s-mktcost',this)">🎤</button></div></div>
+    <div class="field"><label>Order Earnings</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="s-earnings" placeholder="0.00"></div><button class="mic-btn" onclick="startVoice('s-earnings',this)">🎤</button></div></div>
+    <input type="hidden" id="s-id">
+    <div class="modal-actions">
+      <button class="save-btn" onclick="saveSale()" style="margin-top:0;background:#F9A825;">🎉 Mark Sold</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div id="print-area">
+  <div class="print-label">
+    <div class="pl-shop">MPInspiredDesignsCo</div>
+    <div class="pl-sku" id="print-sku"></div>
+    <div id="print-qr"></div>
+  </div>
+</div>
+
+<script>
+// ── STATE ─────────────────────────────────────────────────────────────────
+let entries = [];
+let currentFilter = 'All';
+let shippingChoice = 'C';
+let editShippingChoice = 'C';
+let recognition = null;
+let currentQRSku = '';
+
+// ── FORMAT PRICE ──────────────────────────────────────────────────────────
+function formatPrice(val) {
+  if (!val) return '—';
+  // Strip any existing $ signs
+  const clean = String(val).replace(/[$,]/g, '').trim();
+  const num = parseFloat(clean);
+  if (isNaN(num)) return val;
+  return '$' + num.toFixed(2);
+}
+
+function cleanPrice(val) {
+  return String(val || '').replace(/[$,]/g, '').trim();
+}
+
+// ── FIREBASE INIT ─────────────────────────────────────────────────────────
+function initFirebase() {
+  if (!window.firebaseReady) {
+    window.addEventListener('firebaseReady', () => loadFromFirebase());
+  } else {
+    loadFromFirebase();
+  }
+}
+
+function setSyncStatus(status, msg) {
+  const bar = document.getElementById('sync-bar');
+  bar.className = 'sync-bar ' + status;
+  bar.textContent = msg;
+}
+
+function loadFromFirebase() {
+  const dbRef = window.fbRef(window.fbDb, 'inventory');
+  window.fbOnValue(dbRef, (snapshot) => {
+    const data = snapshot.val();
+    entries = data ? Object.values(data) : [];
+    entries.sort((a, b) => a.sku.localeCompare(b.sku));
+    updateStats();
+    renderInventory();
+    document.getElementById('loading-overlay').style.display = 'none';
+    setSyncStatus('synced', '✓ Connected — data saved to cloud');
+  }, (error) => {
+    console.error(error);
+    // Fallback to localStorage
+    entries = JSON.parse(localStorage.getItem('mp_v2_entries') || '[]');
+    updateStats();
+    renderInventory();
+    document.getElementById('loading-overlay').style.display = 'none';
+    setSyncStatus('error', '⚠ Offline — using local backup');
+  });
+}
+
+async function saveToFirebase(entry) {
+  setSyncStatus('syncing', '↑ Saving...');
+  try {
+    await window.fbSet(window.fbRef(window.fbDb, 'inventory/' + entry.id), entry);
+    setSyncStatus('synced', '✓ Saved to cloud');
+    // Also save to localStorage as backup
+    localStorage.setItem('mp_v2_entries', JSON.stringify(entries));
+  } catch(e) {
+    setSyncStatus('error', '⚠ Save failed — check connection');
+    showToast('Save failed! Check your connection.');
+  }
+}
+
+async function deleteFromFirebase(id) {
+  try {
+    await window.fbRemove(window.fbRef(window.fbDb, 'inventory/' + id));
+    setSyncStatus('synced', '✓ Deleted from cloud');
+    localStorage.setItem('mp_v2_entries', JSON.stringify(entries));
+  } catch(e) {
+    setSyncStatus('error', '⚠ Delete failed');
+  }
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'inventory') renderInventory();
+}
+
+// ── SHIPPING ──────────────────────────────────────────────────────────────
+function setShipping(val) {
+  shippingChoice = val;
+  document.getElementById('tog-c').classList.toggle('selected', val === 'C');
+  document.getElementById('tog-f').classList.toggle('selected', val === 'F');
+}
+
+function setEditShipping(val) {
+  editShippingChoice = val;
+  document.getElementById('e-tog-c').classList.toggle('selected', val === 'C');
+  document.getElementById('e-tog-f').classList.toggle('selected', val === 'F');
+}
+
+// ── VOICE ─────────────────────────────────────────────────────────────────
+function startVoice(fieldId, btn) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { showToast('Use keyboard mic instead'); return; }
+  if (recognition) recognition.stop();
+  recognition = new SR();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+  btn.classList.add('recording');
+  recognition.onresult = (e) => {
+    document.getElementById(fieldId).value = e.results[0][0].transcript;
+    btn.classList.remove('recording');
+  };
+  recognition.onerror = recognition.onend = () => btn.classList.remove('recording');
+  recognition.start();
+}
+
+// ── SAVE ENTRY ────────────────────────────────────────────────────────────
+async function saveEntry() {
+  const sku = document.getElementById('n-sku').value.trim();
+  const type = document.getElementById('n-type').value.trim();
+  if (!sku) { showToast('Please enter a SKU number'); return; }
+  if (!type) { showToast('Please enter an item type'); return; }
+  if (entries.find(e => e.sku === sku)) { showToast('SKU ' + sku + ' already exists!'); return; }
+
+  const entry = {
+    id: 'item_' + Date.now(),
+    sku,
+    type,
+    desc: document.getElementById('n-desc').value.trim(),
+    bin: document.getElementById('n-bin').value.trim(),
+    status: document.getElementById('n-status').value,
+    cost: cleanPrice(document.getElementById('n-cost').value),
+    matcost: cleanPrice(document.getElementById('n-matcost').value),
+    price: cleanPrice(document.getElementById('n-price').value),
+    dateListed: document.getElementById('n-datelisted').value,
+    shipping: shippingChoice,
+    box: document.getElementById('n-box').value.trim(),
+    wActual: document.getElementById('n-wactual').value.trim(),
+    wList: document.getElementById('n-wlist').value.trim(),
+    etsyFees: cleanPrice(document.getElementById('n-etsyfees').value),
+    mktCost: cleanPrice(document.getElementById('n-mktcost').value),
+    buyerPaid: '', shipCost: '', earnings: '',
+    notes: document.getElementById('n-notes').value.trim(),
+    materials: {
+      foam: parseInt(document.getElementById('m-foam').value) || 0,
+      bubble: parseInt(document.getElementById('m-bubble').value) || 0,
+      saran: parseInt(document.getElementById('m-saran').value) || 0,
+      tissue: parseInt(document.getElementById('m-tissue').value) || 0,
+      peanuts: parseInt(document.getElementById('m-peanuts').value) || 0,
+    },
+    createdAt: new Date().toISOString()
+  };
+
+  entries.push(entry);
+  await saveToFirebase(entry);
+  updateStats();
+  showToast('✓ Saved! SKU: ' + sku);
+  setTimeout(() => showQR(sku), 600);
+  resetNewForm();
+}
+
+function resetNewForm() {
+  ['n-sku','n-type','n-desc','n-bin','n-cost','n-matcost','n-price','n-box','n-wactual','n-wlist','n-etsyfees','n-mktcost','n-notes'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('n-datelisted').value = '';
+  document.getElementById('n-status').value = 'Unlisted';
+  ['m-foam','m-bubble','m-saran','m-tissue','m-peanuts'].forEach(id => document.getElementById(id).value = 0);
+  setShipping('C');
+}
+
+// ── QR ────────────────────────────────────────────────────────────────────
+function showQR(sku) {
+  currentQRSku = sku;
+  document.getElementById('qr-sku-text').textContent = sku;
+  const canvas = document.getElementById('qr-canvas');
+  canvas.innerHTML = '';
+  new QRCode(canvas, { text: 'MPID:' + sku, width: 180, height: 180, colorDark: '#2C2C2C', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.H });
+  openModal('qr-modal');
+}
+
+function printQR() {
+  document.getElementById('print-sku').textContent = currentQRSku;
+  const pqr = document.getElementById('print-qr');
+  pqr.innerHTML = '';
+  new QRCode(pqr, { text: 'MPID:' + currentQRSku, width: 120, height: 120, colorDark: '#000', colorLight: '#fff' });
+  setTimeout(() => window.print(), 300);
+}
+
+// ── INVENTORY ─────────────────────────────────────────────────────────────
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderInventory();
+}
+
+function renderInventory() {
+  const search = (document.getElementById('inv-search').value || '').toLowerCase();
+  const container = document.getElementById('inv-container');
+  let filtered = entries.filter(e => {
+    const matchFilter = currentFilter === 'All' || e.status === currentFilter;
+    const matchSearch = !search || e.sku.toLowerCase().includes(search) || e.type.toLowerCase().includes(search) || (e.desc||'').toLowerCase().includes(search) || (e.bin||'').toLowerCase().includes(search);
+    return matchFilter && matchSearch;
+  }).slice().reverse();
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📦</div><p>No items found.<br>Add your first item with the + New tab!</p></div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(e => {
+    const sc = (e.status||'').split('/')[0].trim().toLowerCase();
+    const mats = [];
+    if (e.materials) {
+      if (e.materials.foam) mats.push(e.materials.foam + ' foam');
+      if (e.materials.bubble) mats.push(e.materials.bubble + ' bubble');
+      if (e.materials.saran) mats.push(e.materials.saran + ' saran');
+      if (e.materials.tissue) mats.push(e.materials.tissue + ' tissue');
+      if (e.materials.peanuts) mats.push(e.materials.peanuts + ' peanuts');
+    }
+    const profit = calcProfit(e);
+    const profitDisplay = profit !== null ? `<div class="card-field"><span>Total Profit</span><span class="${profit >= 0 ? 'profit-positive' : 'profit-negative'}">${formatPrice(profit.toFixed(2))}</span></div>` : '';
+
+    return `<div class="inv-card ${sc}">
+      <div class="card-top">
+        <div class="card-sku">${e.sku}</div>
+        <span class="status-badge status-${e.status}">${e.status}</span>
+      </div>
+      <div class="card-item">${e.type}${e.desc ? ' — ' + e.desc.substring(0,60) + (e.desc.length > 60 ? '…' : '') : ''}</div>
+      <div class="card-grid">
+        <div class="card-field"><span>Bin</span>${e.bin || '—'}</div>
+        <div class="card-field"><span>Cost Paid</span>${formatPrice(e.cost)}</div>
+        <div class="card-field"><span>Listed Price</span>${formatPrice(e.price)}</div>
+        <div class="card-field"><span>Shipping</span>${e.shipping === 'F' ? 'Free' : 'Calculated'}</div>
+        ${e.buyerPaid ? `<div class="card-field"><span>Buyer Paid</span>${formatPrice(e.buyerPaid)}</div>` : ''}
+        ${e.shipCost ? `<div class="card-field"><span>Ship Cost</span>${formatPrice(e.shipCost)}</div>` : ''}
+        ${profitDisplay}
+        <div class="card-field"><span>Date Listed</span>${e.dateListed || 'Not yet'}</div>
+      </div>
+      ${mats.length ? `<div class="card-mats">📦 ${mats.join(' · ')}</div>` : ''}
+      ${e.notes ? `<div class="card-notes">${e.notes}</div>` : ''}
+      <div class="card-actions">
+        <button class="card-btn btn-edit" onclick="openEdit('${e.id}')">✏️ Edit</button>
+        <button class="card-btn btn-qr" onclick="showQR('${e.sku}')">QR</button>
+        ${e.status !== 'Sold' ? `<button class="card-btn btn-sell" onclick="openSell('${e.id}')">Sold!</button>` : ''}
+        <button class="card-btn btn-delete" onclick="deleteEntry('${e.id}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── PROFIT ────────────────────────────────────────────────────────────────
+function calcProfit(e) {
+  if (!e.buyerPaid) return null;
+  return (parseFloat(e.buyerPaid)||0) - (parseFloat(e.cost)||0) - (parseFloat(e.matcost)||0) - (parseFloat(e.etsyFees)||0) - (parseFloat(e.shipCost)||0) - (parseFloat(e.mktCost)||0);
+}
+
+// ── EDIT ──────────────────────────────────────────────────────────────────
+function openEdit(id) {
+  const e = entries.find(x => x.id === id);
+  if (!e) return;
+  document.getElementById('e-id').value = id;
+  document.getElementById('e-status').value = e.status || 'Unlisted';
+  document.getElementById('e-type').value = e.type || '';
+  document.getElementById('e-desc').value = e.desc || '';
+  document.getElementById('e-bin').value = e.bin || '';
+  document.getElementById('e-cost').value = cleanPrice(e.cost);
+  document.getElementById('e-matcost').value = cleanPrice(e.matcost);
+  document.getElementById('e-price').value = cleanPrice(e.price);
+  document.getElementById('e-box').value = e.box || '';
+  document.getElementById('e-wactual').value = e.wActual || '';
+  document.getElementById('e-wlist').value = e.wList || '';
+  document.getElementById('e-datelisted').value = e.dateListed || '';
+  document.getElementById('e-buyerpaid').value = cleanPrice(e.buyerPaid);
+  document.getElementById('e-etsyfees').value = cleanPrice(e.etsyFees);
+  document.getElementById('e-mktcost').value = cleanPrice(e.mktCost);
+  document.getElementById('e-shipcost').value = cleanPrice(e.shipCost);
+  document.getElementById('e-notes').value = e.notes || '';
+  editShippingChoice = e.shipping || 'C';
+  document.getElementById('e-tog-c').classList.toggle('selected', editShippingChoice === 'C');
+  document.getElementById('e-tog-f').classList.toggle('selected', editShippingChoice === 'F');
+  openModal('edit-modal');
+}
+
+async function saveEdit() {
+  const id = document.getElementById('e-id').value;
+  const idx = entries.findIndex(x => x.id === id);
+  if (idx === -1) return;
+  entries[idx] = {
+    ...entries[idx],
+    status: document.getElementById('e-status').value,
+    type: document.getElementById('e-type').value.trim(),
+    desc: document.getElementById('e-desc').value.trim(),
+    bin: document.getElementById('e-bin').value.trim(),
+    cost: cleanPrice(document.getElementById('e-cost').value),
+    matcost: cleanPrice(document.getElementById('e-matcost').value),
+    price: cleanPrice(document.getElementById('e-price').value),
+    shipping: editShippingChoice,
+    box: document.getElementById('e-box').value.trim(),
+    wActual: document.getElementById('e-wactual').value.trim(),
+    wList: document.getElementById('e-wlist').value.trim(),
+    dateListed: document.getElementById('e-datelisted').value,
+    buyerPaid: cleanPrice(document.getElementById('e-buyerpaid').value),
+    etsyFees: cleanPrice(document.getElementById('e-etsyfees').value),
+    mktCost: cleanPrice(document.getElementById('e-mktcost').value),
+    shipCost: cleanPrice(document.getElementById('e-shipcost').value),
+    notes: document.getElementById('e-notes').value.trim(),
+  };
+  await saveToFirebase(entries[idx]);
+  updateStats();
+  closeModal('edit-modal');
+  renderInventory();
+  showToast('✓ Changes saved to cloud!');
+}
+
+// ── SELL ──────────────────────────────────────────────────────────────────
+function openSell(id) {
+  const e = entries.find(x => x.id === id);
+  if (!e) return;
+  document.getElementById('sell-sku').textContent = e.sku;
+  document.getElementById('sell-item').textContent = e.type;
+  document.getElementById('s-id').value = id;
+  ['s-buyerpaid','s-shipcost','s-mktcost','s-earnings'].forEach(i => document.getElementById(i).value = '');
+  document.getElementById('s-etsyfees').value = cleanPrice(e.etsyFees);
+  openModal('sell-modal');
+}
+
+async function saveSale() {
+  const id = document.getElementById('s-id').value;
+  const idx = entries.findIndex(x => x.id === id);
+  if (idx === -1) return;
+  entries[idx] = {
+    ...entries[idx],
+    status: 'Sold',
+    buyerPaid: cleanPrice(document.getElementById('s-buyerpaid').value),
+    etsyFees: cleanPrice(document.getElementById('s-etsyfees').value),
+    shipCost: cleanPrice(document.getElementById('s-shipcost').value),
+    mktCost: cleanPrice(document.getElementById('s-mktcost').value),
+    earnings: cleanPrice(document.getElementById('s-earnings').value),
+  };
+  await saveToFirebase(entries[idx]);
+  updateStats();
+  closeModal('sell-modal');
+  renderInventory();
+  showToast('🎉 Marked as Sold!');
+}
+
+// ── DELETE ────────────────────────────────────────────────────────────────
+async function deleteEntry(id) {
+  if (!confirm('Delete this item?')) return;
+  entries = entries.filter(e => e.id !== id);
+  await deleteFromFirebase(id);
+  updateStats();
+  renderInventory();
+  showToast('Deleted');
+}
+
+// ── LOOKUP ────────────────────────────────────────────────────────────────
+function lookupSKU() {
+  const sku = document.getElementById('manual-sku').value.trim().toUpperCase();
+  const entry = entries.find(e => e.sku.toUpperCase() === sku);
+  if (!entry) { showToast('SKU not found: ' + sku); return; }
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('screen-inventory').classList.add('active');
+  document.querySelector('.tab:nth-child(2)').classList.add('active');
+  document.getElementById('inv-search').value = sku;
+  renderInventory();
+  openEdit(entry.id);
+}
+
+// ── STATS ─────────────────────────────────────────────────────────────────
+function updateStats() {
+  document.getElementById('stat-total').textContent = entries.length;
+  document.getElementById('stat-unlisted').textContent = entries.filter(e => e.status === 'Unlisted').length;
+  document.getElementById('stat-listed').textContent = entries.filter(e => e.status === 'Listed').length;
+  document.getElementById('stat-sold').textContent = entries.filter(e => e.status === 'Sold').length;
+}
+
+// ── EXPORT CSV ────────────────────────────────────────────────────────────
+function exportCSV(type) {
+  let data = entries;
+  if (type === 'sold') data = entries.filter(e => e.status === 'Sold');
+  if (type === 'active') data = entries.filter(e => e.status === 'Listed');
+  if (data.length === 0) { showToast('No items to export'); return; }
+  const headers = ['SKU','Item Type','Description','Bin Location','Status','Unit Price Paid','Material Costs','Listed Price','Free or Calculated','Date Listed','Buyer Paid','Etsy Fees','Marketing Costs','Shipping Cost','Order Earnings','Total Profit','Notes','Box','Actual Weight','List Weight','Foam','Bubble Wrap','Saran Wrap','Tissue Paper','Packing Peanuts','Created'];
+  const rows = data.map(e => {
+    const profit = calcProfit(e);
+    return [e.sku,e.type,e.desc,e.bin,e.status,e.cost,e.matcost,e.price,e.shipping,e.dateListed,e.buyerPaid,e.etsyFees,e.mktCost,e.shipCost,e.earnings,profit!==null?profit.toFixed(2):'',e.notes,e.box,e.wActual,e.wList,e.materials?.foam||0,e.materials?.bubble||0,e.materials?.saran||0,e.materials?.tissue||0,e.materials?.peanuts||0,new Date(e.createdAt).toLocaleDateString()]
+    .map(v => '"' + String(v||'').replace(/"/g,'""') + '"').join(',');
+  });
+  const csv = [headers.join(','),...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = 'MP_Inventory_' + type + '_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  showToast('CSV downloaded!');
+}
+
+// ── IMPORT CSV ────────────────────────────────────────────────────────────
+function importCSV(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const lines = e.target.result.split('\n').filter(l => l.trim());
+    const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim());
+    let imported = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const vals = lines[i].match(/(".*?"|[^,]+)(?=,|$)/g) || [];
+      const clean = vals.map(v => v.replace(/^"|"$/g,'').trim());
+      const sku = clean[0];
+      if (!sku || entries.find(e => e.sku === sku)) continue;
+      const entry = {
+        id: 'item_' + Date.now() + '_' + i,
+        sku, type: clean[1]||'', desc: clean[2]||'', bin: clean[3]||'',
+        status: clean[4]||'Unlisted', cost: clean[5]||'', matcost: clean[6]||'',
+        price: clean[7]||'', shipping: clean[8]||'C', dateListed: clean[9]||'',
+        buyerPaid: clean[10]||'', etsyFees: clean[11]||'', mktCost: clean[12]||'',
+        shipCost: clean[13]||'', earnings: clean[14]||'', notes: clean[16]||'',
+        box: clean[17]||'', wActual: clean[18]||'', wList: clean[19]||'',
+        materials: { foam: parseInt(clean[20])||0, bubble: parseInt(clean[21])||0, saran: parseInt(clean[22])||0, tissue: parseInt(clean[23])||0, peanuts: parseInt(clean[24])||0 },
+        createdAt: new Date().toISOString()
+      };
+      entries.push(entry);
+      await saveToFirebase(entry);
+      imported++;
+    }
+    updateStats();
+    renderInventory();
+    showToast('✓ Imported ' + imported + ' items!');
+  };
+  reader.readAsText(file);
+}
+
+// ── CLEAR ─────────────────────────────────────────────────────────────────
+async function clearAll() {
+  if (!confirm('Clear ALL data? Make sure you exported first!')) return;
+  for (const e of entries) await deleteFromFirebase(e.id);
+  entries = [];
+  updateStats();
+  renderInventory();
+  showToast('All data cleared');
+}
+
+// ── MODALS ────────────────────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── TOAST ─────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+// ── START ─────────────────────────────────────────────────────────────────
+initFirebase();
+</script>
+</body>
+</html>
