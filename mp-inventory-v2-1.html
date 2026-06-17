@@ -389,6 +389,18 @@ textarea { resize: vertical; min-height: 55px; }
     <button class="filter-btn" onclick="setFilter('Sold', this)">Sold</button>
     <button class="filter-btn" onclick="setFilter('Damaged', this)">Damaged</button>
   </div>
+  <div class="field" style="margin-bottom:12px;">
+    <select id="sort-select" onchange="renderInventory()" style="font-size:0.78rem;">
+      <option value="sku-asc">SKU — Oldest to Newest</option>
+      <option value="sku-desc">SKU — Newest to Oldest</option>
+      <option value="name-asc">Item Name — A to Z</option>
+      <option value="name-desc">Item Name — Z to A</option>
+      <option value="date-desc">Date Listed — Newest First</option>
+      <option value="date-asc">Date Listed — Oldest First</option>
+      <option value="price-asc">Price — Low to High</option>
+      <option value="price-desc">Price — High to Low</option>
+    </select>
+  </div>
   <div id="inv-container"></div>
 </div>
 
@@ -719,11 +731,27 @@ function setFilter(f, btn) {
 function renderInventory() {
   const search = (document.getElementById('inv-search').value || '').toLowerCase();
   const container = document.getElementById('inv-container');
+  const sortVal = (document.getElementById('sort-select') || {value:'sku-asc'}).value || 'sku-asc';
   let filtered = entries.filter(e => {
     const matchFilter = currentFilter === 'All' || e.status === currentFilter;
     const matchSearch = !search || e.sku.toLowerCase().includes(search) || e.type.toLowerCase().includes(search) || (e.desc||'').toLowerCase().includes(search) || (e.bin||'').toLowerCase().includes(search);
     return matchFilter && matchSearch;
-  }).slice().reverse();
+  }).slice();
+
+  // Apply sort
+  filtered.sort((a, b) => {
+    switch(sortVal) {
+      case 'sku-asc': return a.sku.localeCompare(b.sku, undefined, {numeric:true});
+      case 'sku-desc': return b.sku.localeCompare(a.sku, undefined, {numeric:true});
+      case 'name-asc': return (a.type||'').localeCompare(b.type||'');
+      case 'name-desc': return (b.type||'').localeCompare(a.type||'');
+      case 'date-desc': return (b.dateListed||'').localeCompare(a.dateListed||'');
+      case 'date-asc': return (a.dateListed||'').localeCompare(b.dateListed||'');
+      case 'price-asc': return (parseFloat(a.price)||0) - (parseFloat(b.price)||0);
+      case 'price-desc': return (parseFloat(b.price)||0) - (parseFloat(a.price)||0);
+      default: return a.sku.localeCompare(b.sku, undefined, {numeric:true});
+    }
+  });
 
   if (filtered.length === 0) {
     container.innerHTML = '<div class="empty-state"><div class="icon">📦</div><p>No items found.<br>Add your first item with the + New tab!</p></div>';
