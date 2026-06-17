@@ -461,6 +461,13 @@ textarea { resize: vertical; min-height: 55px; }
   <div class="modal">
     <button class="modal-close" onclick="closeModal('edit-modal')">✕</button>
     <h2>Edit Item</h2>
+    <div class="field">
+      <label>SKU Number</label>
+      <div class="field-row">
+        <input type="text" id="e-sku" class="sku-input-display">
+        <button class="mic-btn" onclick="startVoice('e-sku',this)">🎤</button>
+      </div>
+    </div>
     <div class="field"><label>Status</label>
       <select id="e-status">
         <option value="Unlisted">Unlisted</option>
@@ -810,6 +817,7 @@ function openEdit(id) {
   const e = entries.find(x => x.id === id);
   if (!e) return;
   document.getElementById('e-id').value = id;
+  document.getElementById('e-sku').value = e.sku || '';
   document.getElementById('e-status').value = e.status || 'Unlisted';
   document.getElementById('e-type').value = e.type || '';
   document.getElementById('e-desc').value = e.desc || '';
@@ -838,6 +846,7 @@ async function saveEdit() {
   if (idx === -1) return;
   entries[idx] = {
     ...entries[idx],
+    sku: document.getElementById('e-sku').value.trim(),
     status: document.getElementById('e-status').value,
     type: document.getElementById('e-type').value.trim(),
     desc: document.getElementById('e-desc').value.trim(),
