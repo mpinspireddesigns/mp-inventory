@@ -445,11 +445,14 @@ textarea { resize: vertical; min-height: 55px; }
     <button class="modal-close" onclick="closeModal('qr-modal')">✕</button>
     <h2>QR Label</h2>
     <div class="qr-display">
-      <div class="qr-sku" id="qr-sku-text"></div>
-      <div id="qr-canvas"></div>
-      <div class="qr-shop">MPInspiredDesignsCo</div>
+      <div id="qr-label-capture" style="background:white;padding:16px;border-radius:8px;display:inline-block;text-align:center;border:1.5px solid #DDD8D0;">
+        <div class="qr-sku" id="qr-sku-text" style="font-family:Inter,sans-serif;font-size:1.1rem;font-weight:700;color:#2C2C2C;margin-bottom:8px;letter-spacing:0.05em;"></div>
+        <div id="qr-canvas"></div>
+        <div class="qr-shop" style="font-size:0.65rem;color:#5C5C5C;margin-top:8px;letter-spacing:0.12em;text-transform:uppercase;">MPInspiredDesignsCo</div>
+      </div>
     </div>
-    <div class="modal-actions">
+    <div class="modal-actions" style="flex-direction:column;gap:8px;">
+      <button class="save-btn" onclick="saveLabelToPhone()" style="margin-top:8px;background:#7A8C72;">📱 Save Label to Phone</button>
       <button class="save-btn" onclick="printQR()" style="margin-top:0;">🖨 Print Label</button>
       <button class="secondary-btn" onclick="closeModal('qr-modal')" style="margin-top:0;">Done</button>
     </div>
@@ -725,6 +728,41 @@ function printQR() {
   pqr.innerHTML = '';
   new QRCode(pqr, { text: 'MPID:' + currentQRSku, width: 120, height: 120, colorDark: '#000', colorLight: '#fff' });
   setTimeout(() => window.print(), 300);
+}
+
+function saveLabelToPhone() {
+  const label = document.getElementById('qr-label-capture');
+  if (!label) { showToast('Label not found'); return; }
+  
+  // Use html2canvas to capture just the label div
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  script.onload = () => {
+    html2canvas(label, {
+      backgroundColor: '#ffffff',
+      scale: 3,
+      useCORS: true,
+      logging: false
+    }).then(canvas => {
+      // Convert to image and trigger download
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'MP_Label_' + currentQRSku + '.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('✓ Label saved! Open in Print Master to print.');
+      }, 'image/png');
+    }).catch(err => {
+      showToast('Save failed — try screenshotting instead');
+      console.error(err);
+    });
+  };
+  script.onerror = () => showToast('Could not load image tool — try screenshotting');
+  document.head.appendChild(script);
 }
 
 // ── INVENTORY ─────────────────────────────────────────────────────────────
