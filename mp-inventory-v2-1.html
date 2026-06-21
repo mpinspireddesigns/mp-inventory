@@ -718,7 +718,8 @@ function showQR(sku) {
   document.getElementById('qr-sku-text').textContent = sku;
   const canvas = document.getElementById('qr-canvas');
   canvas.innerHTML = '';
-  new QRCode(canvas, { text: 'MPID:' + sku, width: 180, height: 180, colorDark: '#2C2C2C', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.H });
+  const appUrl = 'https://mpinspireddesigns.github.io/mp-inventory/mp-inventory-v2-1.html?sku=' + encodeURIComponent(sku);
+  new QRCode(canvas, { text: appUrl, width: 180, height: 180, colorDark: '#2C2C2C', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.M });
   openModal('qr-modal');
 }
 
@@ -726,7 +727,8 @@ function printQR() {
   document.getElementById('print-sku').textContent = currentQRSku;
   const pqr = document.getElementById('print-qr');
   pqr.innerHTML = '';
-  new QRCode(pqr, { text: 'MPID:' + currentQRSku, width: 120, height: 120, colorDark: '#000', colorLight: '#fff' });
+  const printUrl = 'https://mpinspireddesigns.github.io/mp-inventory/mp-inventory-v2-1.html?sku=' + encodeURIComponent(currentQRSku);
+  new QRCode(pqr, { text: printUrl, width: 120, height: 120, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.M });
   setTimeout(() => window.print(), 300);
 }
 
@@ -1054,6 +1056,33 @@ function showToast(msg) {
 
 // ── START ─────────────────────────────────────────────────────────────────
 initFirebase();
+
+// Handle QR code scan — check URL for SKU parameter
+window.addEventListener('firebaseReady', () => {
+  setTimeout(() => {
+    const params = new URLSearchParams(window.location.search);
+    const skuParam = params.get('sku');
+    if (skuParam) {
+      // Wait for data to load then open that item
+      const checkData = setInterval(() => {
+        const entry = entries.find(e => e.sku === skuParam);
+        if (entry) {
+          clearInterval(checkData);
+          // Switch to inventory tab
+          document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          document.getElementById('screen-inventory').classList.add('active');
+          document.querySelector('.tab:nth-child(2)').classList.add('active');
+          renderInventory();
+          // Open edit modal for that item
+          setTimeout(() => openEdit(entry.id), 500);
+        }
+      }, 300);
+      // Stop checking after 10 seconds
+      setTimeout(() => clearInterval(checkData), 10000);
+    }
+  }, 1000);
+});
 </script>
 </body>
 </html>
