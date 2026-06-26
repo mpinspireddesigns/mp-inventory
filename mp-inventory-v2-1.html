@@ -485,6 +485,13 @@ textarea { resize: vertical; min-height: 55px; }
     <div class="field"><label>Bin Location</label><div class="field-row"><input type="text" id="e-bin"><button class="mic-btn" onclick="startVoice('e-bin',this)">🎤</button></div></div>
     <div class="field"><label>Unit Price Paid</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="e-cost"></div><button class="mic-btn" onclick="startVoice('e-cost',this)">🎤</button></div></div>
     <div class="field"><label>Material Costs</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="e-matcost"></div><button class="mic-btn" onclick="startVoice('e-matcost',this)">🎤</button></div></div>
+    <div class="field"><label>Packing Materials</label>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+        <div style="display:flex;align-items:center;gap:8px;"><label style="width:140px;font-size:13px;color:#666;">Foam Sheets</label><input type="number" id="e-foam" min="0" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:15px;"></div>
+        <div style="display:flex;align-items:center;gap:8px;"><label style="width:140px;font-size:13px;color:#666;">Bubble Wrap Sheets</label><input type="number" id="e-bubble" min="0" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:15px;"></div>
+        <div style="display:flex;align-items:center;gap:8px;"><label style="width:140px;font-size:13px;color:#666;">Stretch Wrap</label><input type="number" id="e-saran" min="0" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:15px;"></div>
+      </div>
+    </div>
     <div class="field"><label>Listed Price</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="e-price"></div><button class="mic-btn" onclick="startVoice('e-price',this)">🎤</button></div></div>
     <div class="field"><label>Shipping Method</label>
       <div class="toggle-group">
@@ -523,6 +530,27 @@ textarea { resize: vertical; min-height: 55px; }
     <input type="hidden" id="s-id">
     <div class="modal-actions">
       <button class="save-btn" onclick="saveSale()" style="margin-top:0;background:#F9A825;">🎉 Mark Sold</button>
+      <button class="save-btn" onclick="openPromo()" style="margin-top:8px;background:var(--sage);">🎁 Generate Promo Code</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROMO CODE MODAL -->
+<div class="modal-overlay" id="promo-modal">
+  <div class="modal" style="text-align:center;">
+    <button class="modal-close" onclick="closeModal('promo-modal')">✕</button>
+    <h2 style="color:var(--terracotta);">🎁 Promo Code</h2>
+    <p style="font-size:13px;color:var(--ink-mid);margin-bottom:16px;">Share this with your buyer as a thank-you!</p>
+    <div id="promo-card" style="background:#faf7f2;border:1.5px solid var(--sage);border-radius:14px;padding:20px 16px;margin-bottom:18px;">
+      <div style="font-family:'Playfair Display',serif;font-size:13px;color:var(--ink-mid);margin-bottom:10px;">Thank you so much for supporting my small business!</div>
+      <div style="font-size:13px;color:var(--ink-mid);margin-bottom:12px;">Please enjoy <strong>20% off</strong> any item in my shop using promo code</div>
+      <div id="promo-code-display" style="font-family:monospace;font-size:28px;font-weight:700;letter-spacing:4px;color:var(--terracotta);background:#fff;border:2px dashed var(--terracotta);border-radius:8px;padding:10px 16px;margin:0 auto 12px;display:inline-block;"></div>
+      <div style="font-size:12px;color:var(--ink-mid);margin-bottom:6px;">Valid until <strong id="promo-expiry"></strong></div>
+      <div style="font-size:11px;color:#999;">Single use · All listings · etsy.com/shop/MPInspiredDesignsCo</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="save-btn" onclick="savePromoImage()" style="margin-top:0;background:var(--sage);">📱 Save Image to Phone</button>
+      <button class="save-btn" onclick="closeModal('promo-modal')" style="margin-top:0;background:#ccc;color:#333;">Done</button>
     </div>
   </div>
 </div>
@@ -719,7 +747,7 @@ function showQR(sku) {
   const canvas = document.getElementById('qr-canvas');
   canvas.innerHTML = '';
   const appUrl = 'https://mpinspireddesigns.github.io/mp-inventory/mp-inventory-v2-1.html?sku=' + encodeURIComponent(sku);
-  new QRCode(canvas, { text: appUrl, width: 180, height: 180, colorDark: '#2C2C2C', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.M });
+  new QRCode(canvas, { text: appUrl, width: 180, height: 180, colorDark: '#2C2C2C', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.H });
   openModal('qr-modal');
 }
 
@@ -728,7 +756,7 @@ function printQR() {
   const pqr = document.getElementById('print-qr');
   pqr.innerHTML = '';
   const printUrl = 'https://mpinspireddesigns.github.io/mp-inventory/mp-inventory-v2-1.html?sku=' + encodeURIComponent(currentQRSku);
-  new QRCode(pqr, { text: printUrl, width: 120, height: 120, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.M });
+  new QRCode(pqr, { text: printUrl, width: 120, height: 120, colorDark: '#000', colorLight: '#fff' });
   setTimeout(() => window.print(), 300);
 }
 
@@ -864,6 +892,9 @@ function openEdit(id) {
   document.getElementById('e-bin').value = e.bin || '';
   document.getElementById('e-cost').value = cleanPrice(e.cost);
   document.getElementById('e-matcost').value = cleanPrice(e.matcost);
+  document.getElementById('e-foam').value = e.materials?.foam || 0;
+  document.getElementById('e-bubble').value = e.materials?.bubble || 0;
+  document.getElementById('e-saran').value = e.materials?.saran || 0;
   document.getElementById('e-price').value = cleanPrice(e.price);
   document.getElementById('e-box').value = e.box || '';
   document.getElementById('e-wactual').value = e.wActual || '';
@@ -893,6 +924,7 @@ async function saveEdit() {
     bin: document.getElementById('e-bin').value.trim(),
     cost: cleanPrice(document.getElementById('e-cost').value),
     matcost: cleanPrice(document.getElementById('e-matcost').value),
+    materials: { ...(entries[idx].materials || {}), foam: parseInt(document.getElementById('e-foam').value) || 0, bubble: parseInt(document.getElementById('e-bubble').value) || 0, saran: parseInt(document.getElementById('e-saran').value) || 0 },
     price: cleanPrice(document.getElementById('e-price').value),
     shipping: editShippingChoice,
     box: document.getElementById('e-box').value.trim(),
@@ -952,6 +984,109 @@ async function deleteEntry(id) {
   updateStats();
   renderInventory();
   showToast('Deleted');
+}
+
+// ── PROMO CODE ────────────────────────────────────────────────────────────
+function generatePromoCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+function openPromo() {
+  const code = generatePromoCode();
+  const expiry = new Date();
+  expiry.setDate(expiry.getDate() + 30);
+  const expiryStr = expiry.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  document.getElementById('promo-code-display').textContent = code;
+  document.getElementById('promo-expiry').textContent = expiryStr;
+  openModal('promo-modal');
+}
+
+async function savePromoImage() {
+  const card = document.getElementById('promo-card');
+  const code = document.getElementById('promo-code-display').textContent;
+  const expiry = document.getElementById('promo-expiry').textContent;
+
+  // Draw to canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = 700; canvas.height = 380;
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#faf7f2';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, 700, 380, 20);
+  ctx.fill();
+
+  // Border
+  ctx.strokeStyle = '#7a9e7e';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.roundRect(4, 4, 692, 372, 18);
+  ctx.stroke();
+
+  // Shop name
+  ctx.fillStyle = '#7a9e7e';
+  ctx.font = 'bold 18px Georgia, serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('MPInspiredDesignsCo', 350, 48);
+
+  // Thank you text
+  ctx.fillStyle = '#4a4a4a';
+  ctx.font = '15px Georgia, serif';
+  ctx.fillText('Thank you so much for supporting my small business!', 350, 88);
+
+  ctx.font = '15px Georgia, serif';
+  ctx.fillText('Please enjoy 20% off any item in my shop using promo code', 350, 116);
+
+  // Promo code box
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.roundRect(200, 135, 300, 70, 10);
+  ctx.fill();
+  ctx.setLineDash([8, 5]);
+  ctx.strokeStyle = '#c0552a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(200, 135, 300, 70, 10);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Code text
+  ctx.fillStyle = '#c0552a';
+  ctx.font = 'bold 36px monospace';
+  ctx.letterSpacing = '4px';
+  ctx.fillText(code, 350, 182);
+
+  // Expiry
+  ctx.fillStyle = '#4a4a4a';
+  ctx.font = '14px Georgia, serif';
+  ctx.fillText('Valid until ' + expiry, 350, 240);
+
+  // Fine print
+  ctx.fillStyle = '#999';
+  ctx.font = '12px Georgia, serif';
+  ctx.fillText('Single use · All listings · etsy.com/shop/MPInspiredDesignsCo', 350, 268);
+
+  // Decorative line
+  ctx.strokeStyle = '#7a9e7e';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(60, 290); ctx.lineTo(640, 290);
+  ctx.stroke();
+
+  ctx.fillStyle = '#7a9e7e';
+  ctx.font = '12px Georgia, serif';
+  ctx.fillText('Thank you for your purchase! ♥', 350, 316);
+
+  // Save
+  const link = document.createElement('a');
+  link.download = 'promo-' + code + '.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  showToast('✓ Promo image saved!');
 }
 
 // ── LOOKUP ────────────────────────────────────────────────────────────────
