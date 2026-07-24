@@ -625,11 +625,14 @@ function loadFromFirebase() {
 
 async function saveToFirebase(entry) {
   setSyncStatus('syncing', '↑ Saving...');
+  // Always update the in-memory entry first
+  const idx = entries.findIndex(x => x.id === entry.id);
+  if (idx !== -1) entries[idx] = entry;
+  // Always sync localStorage immediately
+  localStorage.setItem('mp_v2_entries', JSON.stringify(entries));
   try {
     await window.fbSet(window.fbRef(window.fbDb, 'inventory/' + entry.id), entry);
     setSyncStatus('synced', '✓ Saved to cloud');
-    // Also save to localStorage as backup
-    localStorage.setItem('mp_v2_entries', JSON.stringify(entries));
   } catch(e) {
     setSyncStatus('error', '⚠ Save failed — check connection');
     showToast('Save failed! Check your connection.');
@@ -973,7 +976,7 @@ async function saveSale() {
   updateStats();
   closeModal('sell-modal');
   renderInventory();
-  showToast('🎉 Marked as Sold!');
+  showToast('🎉 Marked as Sold — ' + entries[idx].sku + ' saved!');
 }
 
 // ── DELETE ────────────────────────────────────────────────────────────────
