@@ -600,18 +600,32 @@ function setSyncStatus(status, msg) {
   const bar = document.getElementById('sync-bar');
   bar.className = 'sync-bar ' + status;
   bar.textContent = msg;
+  if (status === 'error') {
+    bar.onclick = manualReconnect;
+    bar.style.cursor = 'pointer';
+    bar.title = 'Tap to retry connection';
+  } else {
+    bar.onclick = null;
+    bar.style.cursor = 'default';
+    bar.title = '';
+  }
 }
 
 function loadFromFirebase() {
+  setSyncStatus('syncing', '↑ Connecting...');
   const dbRef = window.fbRef(window.fbDb, 'inventory');
   window.fbOnValue(dbRef, (snapshot) => {
     const data = snapshot.val();
     entries = data ? Object.values(data) : [];
     entries.sort((a, b) => a.sku.localeCompare(b.sku));
+    // Always update localStorage with latest Firebase data
+    localStorage.setItem('mp_v2_entries', JSON.stringify(entries));
     updateStats();
     renderInventory();
     document.getElementById('loading-overlay').style.display = 'none';
     setSyncStatus('synced', '✓ Connected — data saved to cloud');
+    // Clear any pending retry
+    if (window._fbRetryTimer) { clearTimeout(window._fbRetryTimer); window._fbRetryTimer = null; }
   }, (error) => {
     console.error(error);
     // Fallback to localStorage
@@ -619,8 +633,21 @@ function loadFromFirebase() {
     updateStats();
     renderInventory();
     document.getElementById('loading-overlay').style.display = 'none';
-    setSyncStatus('error', '⚠ Offline — using local backup');
+    setSyncStatus('error', '⚠ Offline — retrying...');
+    // Auto-retry every 10 seconds
+    if (!window._fbRetryTimer) {
+      window._fbRetryTimer = setTimeout(() => {
+        window._fbRetryTimer = null;
+        loadFromFirebase();
+      }, 10000);
+    }
   });
+}
+
+function manualReconnect() {
+  if (window._fbRetryTimer) { clearTimeout(window._fbRetryTimer); window._fbRetryTimer = null; }
+  setSyncStatus('syncing', '↑ Reconnecting...');
+  loadFromFirebase();
 }
 
 async function saveToFirebase(entry) {
