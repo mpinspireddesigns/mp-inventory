@@ -507,6 +507,8 @@ textarea { resize: vertical; min-height: 55px; }
     <div class="field"><label>Etsy Fees</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="e-etsyfees"></div><button class="mic-btn" onclick="startVoice('e-etsyfees',this)">🎤</button></div></div>
     <div class="field"><label>Marketing Costs</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="e-mktcost"></div><button class="mic-btn" onclick="startVoice('e-mktcost',this)">🎤</button></div></div>
     <div class="field"><label>Shipping Cost (actual)</label><div class="field-row"><div class="price-wrap"><span class="dollar">$</span><input type="text" id="e-shipcost"></div><button class="mic-btn" onclick="startVoice('e-shipcost',this)">🎤</button></div></div>
+    <div class="field"><label>Promo Code</label><div class="field-row"><input type="text" id="e-promocode" placeholder="e.g. KK3RHP9V"></div></div>
+    <div class="field"><label>Promo Code Expiration</label><div class="field-row"><input type="text" id="e-promoexpiry" placeholder="e.g. September 16, 2026"></div></div>
     <div class="field"><label>Notes</label><div class="field-row"><textarea id="e-notes"></textarea><button class="mic-btn" onclick="startVoice('e-notes',this)" style="align-self:flex-start">🎤</button></div></div>
     <input type="hidden" id="e-id">
     <div class="modal-actions">
@@ -915,6 +917,8 @@ function openEdit(id) {
   document.getElementById('e-mktcost').value = cleanPrice(e.mktCost);
   document.getElementById('e-shipcost').value = cleanPrice(e.shipCost);
   document.getElementById('e-notes').value = e.notes || '';
+  document.getElementById('e-promocode').value = e.promoCode || '';
+  document.getElementById('e-promoexpiry').value = e.promoExpiry || '';
   editShippingChoice = e.shipping || 'C';
   document.getElementById('e-tog-c').classList.toggle('selected', editShippingChoice === 'C');
   document.getElementById('e-tog-f').classList.toggle('selected', editShippingChoice === 'F');
@@ -946,6 +950,8 @@ async function saveEdit() {
     mktCost: cleanPrice(document.getElementById('e-mktcost').value),
     shipCost: cleanPrice(document.getElementById('e-shipcost').value),
     notes: document.getElementById('e-notes').value.trim(),
+    promoCode: document.getElementById('e-promocode').value.trim(),
+    promoExpiry: document.getElementById('e-promoexpiry').value.trim(),
   };
   await saveToFirebase(entries[idx]);
   updateStats();
