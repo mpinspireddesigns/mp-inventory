@@ -572,6 +572,8 @@ let shippingChoice = 'C';
 let editShippingChoice = 'C';
 let recognition = null;
 let currentQRSku = '';
+let currentPromoCode = '';
+let currentPromoExpiry = '';
 
 // ── FORMAT PRICE ──────────────────────────────────────────────────────────
 function formatPrice(val) {
@@ -600,32 +602,18 @@ function setSyncStatus(status, msg) {
   const bar = document.getElementById('sync-bar');
   bar.className = 'sync-bar ' + status;
   bar.textContent = msg;
-  if (status === 'error') {
-    bar.onclick = manualReconnect;
-    bar.style.cursor = 'pointer';
-    bar.title = 'Tap to retry connection';
-  } else {
-    bar.onclick = null;
-    bar.style.cursor = 'default';
-    bar.title = '';
-  }
 }
 
 function loadFromFirebase() {
-  setSyncStatus('syncing', '↑ Connecting...');
   const dbRef = window.fbRef(window.fbDb, 'inventory');
   window.fbOnValue(dbRef, (snapshot) => {
     const data = snapshot.val();
     entries = data ? Object.values(data) : [];
     entries.sort((a, b) => a.sku.localeCompare(b.sku));
-    // Always update localStorage with latest Firebase data
-    localStorage.setItem('mp_v2_entries', JSON.stringify(entries));
     updateStats();
     renderInventory();
     document.getElementById('loading-overlay').style.display = 'none';
     setSyncStatus('synced', '✓ Connected — data saved to cloud');
-    // Clear any pending retry
-    if (window._fbRetryTimer) { clearTimeout(window._fbRetryTimer); window._fbRetryTimer = null; }
   }, (error) => {
     console.error(error);
     // Fallback to localStorage
@@ -633,21 +621,8 @@ function loadFromFirebase() {
     updateStats();
     renderInventory();
     document.getElementById('loading-overlay').style.display = 'none';
-    setSyncStatus('error', '⚠ Offline — retrying...');
-    // Auto-retry every 10 seconds
-    if (!window._fbRetryTimer) {
-      window._fbRetryTimer = setTimeout(() => {
-        window._fbRetryTimer = null;
-        loadFromFirebase();
-      }, 10000);
-    }
+    setSyncStatus('error', '⚠ Offline — using local backup');
   });
-}
-
-function manualReconnect() {
-  if (window._fbRetryTimer) { clearTimeout(window._fbRetryTimer); window._fbRetryTimer = null; }
-  setSyncStatus('syncing', '↑ Reconnecting...');
-  loadFromFirebase();
 }
 
 async function saveToFirebase(entry) {
@@ -777,7 +752,11 @@ function showQR(sku) {
   const canvas = document.getElementById('qr-canvas');
   canvas.innerHTML = '';
   const appUrl = 'https://mpinspireddesigns.github.io/mp-inventory/mp-inventory-v2-1.html?sku=' + encodeURIComponent(sku);
-  new QRCode(canvas, { text: appUrl, width: 180, height: 180, colorDark: '#2C2C2C', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.H });
+  // Render at a high native resolution (900x900) so the saved label is sharp when printed —
+  // then scale the on-screen display back down to 180px so the modal still looks the same.
+  new QRCode(canvas, { text: appUrl, width: 900, height: 900, colorDark: '#2C2C2C', colorLight: '#FFFFFF', correctLevel: QRCode.CorrectLevel.H });
+  const qrEl = canvas.querySelector('canvas, img');
+  if (qrEl) { qrEl.style.width = '180px'; qrEl.style.height = '180px'; }
   openModal('qr-modal');
 }
 
@@ -800,7 +779,7 @@ function saveLabelToPhone() {
   script.onload = () => {
     html2canvas(label, {
       backgroundColor: '#ffffff',
-      scale: 3,
+      scale: 5,
       useCORS: true,
       logging: false
     }).then(canvas => {
@@ -889,6 +868,7 @@ function renderInventory() {
         <div class="card-field"><span>Shipping</span>${e.shipping === 'F' ? 'Free' : 'Calculated'}</div>
         ${e.buyerPaid ? `<div class="card-field"><span>Buyer Paid</span>${formatPrice(e.buyerPaid)}</div>` : ''}
         ${e.shipCost ? `<div class="card-field"><span>Ship Cost</span>${formatPrice(e.shipCost)}</div>` : ''}
+        ${e.promoCode ? `<div class="card-field"><span>Promo Code</span>${e.promoCode}${e.promoExpiry ? ' (exp ' + e.promoExpiry + ')' : ''}</div>` : ''}
         ${profitDisplay}
         <div class="card-field"><span>Date Listed</span>${e.dateListed || 'Not yet'}</div>
       </div>
@@ -983,6 +963,9 @@ function openSell(id) {
   document.getElementById('s-id').value = id;
   ['s-buyerpaid','s-shipcost','s-mktcost','s-earnings'].forEach(i => document.getElementById(i).value = '');
   document.getElementById('s-etsyfees').value = cleanPrice(e.etsyFees);
+  // Carry over a promo code already saved on this item (if re-opening), otherwise start fresh
+  currentPromoCode = e.promoCode || '';
+  currentPromoExpiry = e.promoExpiry || '';
   openModal('sell-modal');
 }
 
@@ -998,12 +981,16 @@ async function saveSale() {
     shipCost: cleanPrice(document.getElementById('s-shipcost').value),
     mktCost: cleanPrice(document.getElementById('s-mktcost').value),
     earnings: cleanPrice(document.getElementById('s-earnings').value),
+    promoCode: currentPromoCode || entries[idx].promoCode || '',
+    promoExpiry: currentPromoExpiry || entries[idx].promoExpiry || '',
   };
   await saveToFirebase(entries[idx]);
   updateStats();
   closeModal('sell-modal');
   renderInventory();
   showToast('🎉 Marked as Sold — ' + entries[idx].sku + ' saved!');
+  currentPromoCode = '';
+  currentPromoExpiry = '';
 }
 
 // ── DELETE ────────────────────────────────────────────────────────────────
@@ -1018,7 +1005,8 @@ async function deleteEntry(id) {
 
 // ── PROMO CODE ────────────────────────────────────────────────────────────
 function generatePromoCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  // Excludes look-alike characters: O/0, I/1, and S/5 (S removed — 5 stays for digit coverage)
+  const chars = 'ABCDEFGHJKLMNPQRTUVWXYZ23456789';
   let code = '';
   for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return code;
@@ -1031,6 +1019,9 @@ function openPromo() {
   const expiryStr = expiry.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   document.getElementById('promo-code-display').textContent = code;
   document.getElementById('promo-expiry').textContent = expiryStr;
+  // Remember this code so it gets saved onto the item when "Mark Sold" is clicked
+  currentPromoCode = code;
+  currentPromoExpiry = expiryStr;
   openModal('promo-modal');
 }
 
@@ -1147,10 +1138,10 @@ function exportCSV(type) {
   if (type === 'sold') data = entries.filter(e => e.status === 'Sold');
   if (type === 'active') data = entries.filter(e => e.status === 'Listed');
   if (data.length === 0) { showToast('No items to export'); return; }
-  const headers = ['SKU','Item Type','Description','Bin Location','Status','Unit Price Paid','Material Costs','Listed Price','Free or Calculated','Date Listed','Buyer Paid','Etsy Fees','Marketing Costs','Shipping Cost','Order Earnings','Total Profit','Notes','Box','Actual Weight','List Weight','Foam','Bubble Wrap','Saran Wrap','Tissue Paper','Packing Peanuts','Created'];
+  const headers = ['SKU','Item Type','Description','Bin Location','Status','Unit Price Paid','Material Costs','Listed Price','Free or Calculated','Date Listed','Buyer Paid','Etsy Fees','Marketing Costs','Shipping Cost','Order Earnings','Total Profit','Notes','Box','Actual Weight','List Weight','Foam','Bubble Wrap','Saran Wrap','Tissue Paper','Packing Peanuts','Promo Code','Promo Expiry','Created'];
   const rows = data.map(e => {
     const profit = calcProfit(e);
-    return [e.sku,e.type,e.desc,e.bin,e.status,e.cost,e.matcost,e.price,e.shipping,e.dateListed,e.buyerPaid,e.etsyFees,e.mktCost,e.shipCost,e.earnings,profit!==null?profit.toFixed(2):'',e.notes,e.box,e.wActual,e.wList,e.materials?.foam||0,e.materials?.bubble||0,e.materials?.saran||0,e.materials?.tissue||0,e.materials?.peanuts||0,new Date(e.createdAt).toLocaleDateString()]
+    return [e.sku,e.type,e.desc,e.bin,e.status,e.cost,e.matcost,e.price,e.shipping,e.dateListed,e.buyerPaid,e.etsyFees,e.mktCost,e.shipCost,e.earnings,profit!==null?profit.toFixed(2):'',e.notes,e.box,e.wActual,e.wList,e.materials?.foam||0,e.materials?.bubble||0,e.materials?.saran||0,e.materials?.tissue||0,e.materials?.peanuts||0,e.promoCode||'',e.promoExpiry||'',new Date(e.createdAt).toLocaleDateString()]
     .map(v => '"' + String(v||'').replace(/"/g,'""') + '"').join(',');
   });
   const csv = [headers.join(','),...rows].join('\n');
@@ -1184,6 +1175,7 @@ function importCSV(input) {
         shipCost: clean[13]||'', earnings: clean[14]||'', notes: clean[16]||'',
         box: clean[17]||'', wActual: clean[18]||'', wList: clean[19]||'',
         materials: { foam: parseInt(clean[20])||0, bubble: parseInt(clean[21])||0, saran: parseInt(clean[22])||0, tissue: parseInt(clean[23])||0, peanuts: parseInt(clean[24])||0 },
+        promoCode: clean[25]||'', promoExpiry: clean[26]||'',
         createdAt: new Date().toISOString()
       };
       entries.push(entry);
